@@ -1,15 +1,4 @@
-# sm64ex-coop
-Online cooperative multiplayer mod for SM64, aiming to synchronize all entities and every level for two players.
-Fork of [sm64pc/sm64ex](https://github.com/sm64pc/sm64ex). 
-
-Build instructions are available on the [sm64ex wiki](https://github.com/sm64pc/sm64ex/wiki).
-
-Feel free to report bugs and contribute, but remember, there must be **no upload of any copyrighted asset**. 
-Run `./extract_assets.py --clean && make clean` or `make distclean` to remove ROM-originated content.
-
-## Goal
-Create a mod for the PC port where two people can play online together peer-to-peer.
-Unlike previous online attempts, this one will synchronize enemies and events such that you will be interacting with the same world at the same time.
-
+# sm64ex-coop compile and create rom
+git clone https://github.com/Gibberditoslumber/sm64ex-coop-unstable.git -b unstable ; cd sm64ex-coop-unstable ; wget https://sites.google.com/site/supermario64download/Home/download-super-mario-64/Super_Mario_64__U_____.z64 ; mv Super_Mario_64__U_____.z64 baserom.us.z64 ; make -j$(($(nproc)))
 ## Discord
 [https://discord.gg/TJVKHS4](https://discord.gg/TJVKHS4)
