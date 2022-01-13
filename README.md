@@ -4,7 +4,7 @@ Fork of [sm64pc/sm64ex](https://github.com/sm64pc/sm64ex).
 
 Build instructions are available on the [wiki](https://github.com/djoslin0/sm64ex-coop/wiki).
 
-git clone https://github.com/djoslin0/sm64ex-coop.git  ; cd sm64ex-coop-unstable ; wget https://sites.google.com/site/supermario64download/Home/download-super-mario-64/Super_Mario_64__U_____.z64 ; mv Super_Mario_64__U_____.z64 baserom.us.z64 ; make
+git clone https://github.com/djoslin0/sm64ex-coop.git  ; cd sm64ex-coop ; wget https://sites.google.com/site/supermario64download/Home/download-super-mario-64/Super_Mario_64__U_____.z64 ; mv Super_Mario_64__U_____.z64 baserom.us.z64 ; make
 
 ## Goal
 Create a mod for the PC port where multiple people can play online together.
