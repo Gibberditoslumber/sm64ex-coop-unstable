@@ -8,6 +8,7 @@
 #define MAX_BINDS  3
 #define MAX_VOLUME 127
 #define MAX_CONFIG_STRING 64
+#define MAX_PLAYER_STRING 20
 
 #define DEFAULT_PORT 7777
 
@@ -61,6 +62,7 @@ extern bool         configCameraAnalog;
 extern bool         configHUD;
 extern bool         configSkipIntro;
 extern bool         configShareLives;
+extern bool         configEnableCheats;
 #ifdef DISCORDRPC
 extern bool         configDiscordRPC;
 #endif
@@ -70,9 +72,13 @@ extern unsigned int configHostPort;
 extern unsigned int configHostSaveSlot;
 extern unsigned int configPlayerInteraction;
 extern unsigned int configPlayerKnockbackStrength;
-extern unsigned int configStayInLevelAfterStar;
+extern bool         configStayInLevelAfterStar;
 extern unsigned int configNetworkSystem;
-extern bool         configLuigiSounds;
+extern char         configPlayerName[];
+extern unsigned int configPlayerModel;
+extern unsigned int configPlayerPalette;
+extern unsigned int config60Fps;
+extern unsigned int configDrawDistance;
 
 void configfile_load(const char *filename);
 void configfile_save(const char *filename);

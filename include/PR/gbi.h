@@ -21,6 +21,7 @@
 #define _GBI_H_
 
 #include <PR/ultratypes.h>
+#include "src/pc/djui/djui_gbi.h"
 
 /*
  * To use the F3DEX ucodes, define F3DEX_GBI before include this file.
@@ -117,6 +118,11 @@
 #define G_SPECIAL_1		0xd5
 #define G_SPECIAL_2		0xd4
 #define G_SPECIAL_3		0xd3
+
+#ifdef F3DEX_GBI_2E
+/* extended commands */
+#define G_COPYMEM		0xd2
+#endif
 
 #define G_VTX			0x01
 #define G_MODIFYVTX		0x02
@@ -1790,6 +1796,22 @@ typedef union {
         (uintptr_t)(adrs)						\
 }}
 
+#ifdef F3DEX_GBI_2E
+#define	gCopyMemEXT(pkt, c, idx, dst, src, len)				\
+{									\
+	Gfx *_g = (Gfx *)(pkt);						\
+	_g->words.w0 = (_SHIFTL((c),24,8)|_SHIFTL((src)/8,16,8)|	\
+			_SHIFTL((dst)/8,8,8)|_SHIFTL((idx),0,8));	\
+	_g->words.w1 = (uintptr_t)(((len)-1)/8);				\
+}
+#define	gsCopyMemEXT(c, idx, dst, src, len)					\
+{{									\
+	(_SHIFTL((c),24,8)|_SHIFTL((src)/8,16,8)|	\
+	 _SHIFTL((dst)/8,8,8)|_SHIFTL((idx),0,8)),			\
+	(uintptr_t)(((len)-1)/8)						\
+}}
+#endif
+
 #define	gSPNoOp(pkt)		gDma0p(pkt, G_SPNOOP, 0, 0)
 #define	gsSPNoOp()		gsDma0p(G_SPNOOP, 0, 0)
 
@@ -2540,6 +2562,17 @@ typedef union {
 # define gsSPLight(l, n)	\
 	 gsDma1p(    G_MOVEMEM, l, sizeof(Light),((n)-1)*2+G_MV_L0)
 #endif	/* F3DEX_GBI_2 */
+
+/*
+ * EXTENDED COMMAND
+ * Copy one light's parameters to the other.
+ */
+#ifdef	F3DEX_GBI_2E
+# define gSPCopyLightEXT(pkt, dst, src)	\
+	  gCopyMemEXT((pkt),G_COPYMEM,G_MV_LIGHT,(dst)*24+24,(src)*24+24,sizeof(Light))
+# define gsSPCopyLightEXT(dst, src)	\
+	 gsCopyMemEXT(      G_COPYMEM,G_MV_LIGHT,(dst)*24+24,(src)*24+24,sizeof(Light))
+#endif
 
 /*
  * gSPLightColor changes color of light without recalculating light direction

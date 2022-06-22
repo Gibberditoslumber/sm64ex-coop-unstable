@@ -316,7 +316,7 @@ LEVEL_DIRS := $(patsubst levels/%,%,$(dir $(wildcard levels/*/header.h)))
 
 # Hi, I'm a PC
 SRC_DIRS := src src/engine src/game src/audio src/menu src/buffers actors levels bin data assets src/pc src/pc/gfx src/pc/audio src/pc/controller src/pc/fs src/pc/fs/packtypes
-SRC_DIRS += src/pc/network src/pc/network/packets src/pc/network/socket src/pc/utils
+SRC_DIRS += src/pc/network src/pc/network/packets src/pc/network/socket src/pc/utils src/pc/djui
 ASM_DIRS :=
 
 #ifeq ($(DISCORDRPC),1)
@@ -612,8 +612,8 @@ CFLAGS += -DCOOP
 
 # Enforce -Werror in strict mode
 ifeq ($(STRICT),1)
-  CC_CHECK += -Werror -Wno-error=unused-variable -Wno-error=unused-parameter
-  CFLAGS += -Werror -Wno-error=unused-variable -Wno-error=unused-parameter
+  CC_CHECK += -Werror
+  CFLAGS += -Werror
 endif
 
 # Check for debug option
@@ -861,9 +861,6 @@ $(BUILD_DIR)/include/text_strings.h: include/text_strings.h.in
 $(BUILD_DIR)/include/text_menu_strings.h: include/text_menu_strings.h.in
 	$(TEXTCONV) charmap_menu.txt $< $@
 
-$(BUILD_DIR)/include/text_options_strings.h: include/text_options_strings.h.in
-	$(TEXTCONV) charmap.txt $< $@
-
 ifeq ($(VERSION),eu)
 TEXT_DIRS := text/de text/us text/fr
 
@@ -902,7 +899,6 @@ ALL_DIRS := $(BUILD_DIR) $(addprefix $(BUILD_DIR)/,$(SRC_DIRS) $(ASM_DIRS) $(GOD
 DUMMY != mkdir -p $(ALL_DIRS)
 
 $(BUILD_DIR)/include/text_strings.h: $(BUILD_DIR)/include/text_menu_strings.h
-$(BUILD_DIR)/include/text_strings.h: $(BUILD_DIR)/include/text_options_strings.h
 
 ifeq ($(VERSION),eu)
 $(BUILD_DIR)/src/menu/file_select.o: $(BUILD_DIR)/include/text_strings.h $(BUILD_DIR)/bin/eu/translation_en.o $(BUILD_DIR)/bin/eu/translation_de.o $(BUILD_DIR)/bin/eu/translation_fr.o

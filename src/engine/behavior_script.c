@@ -778,10 +778,11 @@ static s32 bhv_cmd_load_collision_data(void) {
 // Command 0x2D: Sets the home position of the object to its current position.
 // Usage: SET_HOME()
 static s32 bhv_cmd_set_home(void) {
-    gCurrentObject->oHomeX = gCurrentObject->oPosX;
-    gCurrentObject->oHomeY = gCurrentObject->oPosY;
-    gCurrentObject->oHomeZ = gCurrentObject->oPosZ;
-
+    if (!gCurrentObject->createdThroughNetwork) {
+        gCurrentObject->oHomeX = gCurrentObject->oPosX;
+        gCurrentObject->oHomeY = gCurrentObject->oPosY;
+        gCurrentObject->oHomeZ = gCurrentObject->oPosZ;
+    }
     gCurBhvCommand++;
     return BHV_PROC_CONTINUE;
 }
@@ -950,6 +951,45 @@ static BhvCommandProc BehaviorCmdTable[] = {
 
 // Execute the behavior script of the current object, process the object flags, and other miscellaneous code for updating objects.
 void cur_obj_update(void) {
+    // handle network area timer
+    if (gCurrentObject->areaTimerType != AREA_TIMER_TYPE_NONE) {
+        // make sure the area is valid
+        if (gNetworkPlayerLocal == NULL || !gNetworkPlayerLocal->currAreaSyncValid) {
+            goto cur_obj_update_end;
+        }
+
+        // catch up the timer in total loop increments
+        if (gCurrentObject->areaTimerType == AREA_TIMER_TYPE_LOOP) {
+            assert(gCurrentObject->areaTimerDuration > 0);
+            u32 difference = (gNetworkAreaTimer - gCurrentObject->areaTimer);
+            if (difference >= gCurrentObject->areaTimerDuration) {
+                u32 catchup = difference / gCurrentObject->areaTimerDuration;
+                catchup *= gCurrentObject->areaTimerDuration;
+                gCurrentObject->areaTimer += catchup;
+            }
+        }
+
+        // catch up the timer for maximum
+        if (gCurrentObject->areaTimerType == AREA_TIMER_TYPE_MAXIMUM) {
+            assert(gCurrentObject->areaTimerDuration > 0);
+            u32 difference = (gNetworkAreaTimer - gCurrentObject->areaTimer);
+            if (difference >= gCurrentObject->areaTimerDuration) {
+                if (gCurrentObject->areaTimer < 10) {
+                    gCurrentObject->areaTimer = gNetworkAreaTimer;
+                } else {
+                    gCurrentObject->areaTimer = (gNetworkAreaTimer - gCurrentObject->areaTimerDuration);
+                }
+            }
+        }
+
+        // cancel object update if it's running faster than the timer
+        if (gCurrentObject->areaTimer > gNetworkAreaTimer) {
+            goto cur_obj_update_end;
+        }
+    }
+
+cur_obj_update_begin:;
+
     UNUSED u32 unused;
 
     s16 objFlags = gCurrentObject->oFlags;
@@ -1035,19 +1075,58 @@ void cur_obj_update(void) {
     } else if ((objFlags & OBJ_FLAG_COMPUTE_DIST_TO_MARIO) && gCurrentObject->collisionData == NULL) {
         if (!(objFlags & OBJ_FLAG_ACTIVE_FROM_AFAR)) {
             // If the object has a render distance, check if it should be shown.
-#ifndef NODRAWINGDISTANCE
-            if (distanceFromMario > gCurrentObject->oDrawingDistance) {
+            if (distanceFromMario > gCurrentObject->oDrawingDistance * draw_distance_scalar()) {
                 // Out of render distance, hide the object.
                 gCurrentObject->header.gfx.node.flags &= ~GRAPH_RENDER_ACTIVE;
                 gCurrentObject->activeFlags |= ACTIVE_FLAG_FAR_AWAY;
             } else if (gCurrentObject->oHeldState == HELD_FREE) {
-#else
-            if (distanceFromMario <= gCurrentObject->oDrawingDistance && gCurrentObject->oHeldState == HELD_FREE) {
-#endif
                 // In render distance (and not being held), show the object.
                 gCurrentObject->header.gfx.node.flags |= GRAPH_RENDER_ACTIVE;
                 gCurrentObject->activeFlags &= ~ACTIVE_FLAG_FAR_AWAY;
             }
         }
+    }
+
+    // update network area timer
+    if (gCurrentObject->areaTimerType != AREA_TIMER_TYPE_NONE) {
+        gCurrentObject->areaTimer++;
+        if (gCurrentObject->areaTimer < gNetworkAreaTimer) {
+            goto cur_obj_update_begin;
+        }
+    }
+
+    // call the network area timer's run-once callback
+cur_obj_update_end:;
+    if (gCurrentObject->areaTimerType != AREA_TIMER_TYPE_NONE) {
+        if (gCurrentObject->areaTimerRunOnceCallback != NULL) {
+            gCurrentObject->areaTimerRunOnceCallback();
+        }
+    }
+}
+
+u16 position_based_random_u16(void) {
+    u16 value = (u16)(gCurrentObject->oPosX * 17);
+    value ^= (u16)(gCurrentObject->oPosY * 613);
+    value ^= (u16)(gCurrentObject->oPosZ * 3331);
+    return value;
+}
+
+f32 position_based_random_float_position(void) {
+    f32 rnd = position_based_random_u16();
+    return rnd / (double)0x10000;
+}
+
+u8 cur_obj_is_last_nat_update_per_frame(void) {
+    return (gCurrentObject->areaTimer == (gNetworkAreaTimer - 1));
+}
+
+f32 draw_distance_scalar(void) {
+    switch (configDrawDistance) {
+        case 0: return 0.5f;
+        case 1: return 1.0f;
+        case 2: return 1.5f;
+        case 3: return 3.0f;
+        case 4: return 10.0f;
+        default: return 999.0f;
     }
 }

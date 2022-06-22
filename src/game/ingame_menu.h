@@ -30,6 +30,10 @@
 #define RENDER_COURSE_DONE_SCREEN 2
 
 
+#if !defined(VERSION_JP) && !defined(VERSION_SH)
+extern u8 gDialogCharWidths[];
+#endif
+
 extern s8 gDialogCourseActNum;
 extern s8 gHudFlash;
 
@@ -116,6 +120,8 @@ extern s8 gRedCoinsCollected;
 void create_dl_identity_matrix(void);
 void create_dl_translation_matrix(s8 pushOp, f32 x, f32 y, f32 z);
 void create_dl_ortho_matrix(void);
+void render_generic_char(u8 c);
+u8 str_ascii_char_to_dialog(char c);
 void str_ascii_to_dialog(const char* string, u8* dialog, u16 length);
 f32 get_generic_dialog_width(u8* dialog);
 f32 get_generic_ascii_string_width(const char* ascii);
@@ -153,7 +159,6 @@ void do_cutscene_handler(void);
 void render_hud_cannon_reticle(void);
 void reset_red_coins_collected(void);
 s16 render_menus_and_dialogs(void);
-s16 render_sync_level_screen(void);
 void create_dl_scale_matrix(s8 pushOp, f32 x, f32 y, f32 z);
 
 #endif // INGAME_MENU_H

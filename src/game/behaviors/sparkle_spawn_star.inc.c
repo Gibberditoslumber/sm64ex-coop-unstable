@@ -24,7 +24,7 @@ void bhv_spawned_star_init(void) {
     // exclamation box stars are not sent through the normal exclamation box
     // path due to jankiness in oBehParams. Send the spawn event here instead.
     u8 spawnedFromExclamationBox = (o->parentObj != NULL && o->parentObj->behavior == bhvExclamationBox);
-    if (gNetworkLevelLoaded && spawnedFromExclamationBox) {
+    if (gNetworkAreaLoaded && spawnedFromExclamationBox) {
         o->parentObj = o;
         struct Object* spawn_objects[] = { o };
         u32 models[] = { MODEL_STAR };
@@ -51,7 +51,6 @@ void set_home_to_mario(void) {
             break;
         }
     }
-    struct Object* player = nearest_player_to_object(o);
     if (parentIsMario) {
         o->oHomeX = o->parentObj->oPosX;
         o->oHomeZ = o->parentObj->oPosZ;

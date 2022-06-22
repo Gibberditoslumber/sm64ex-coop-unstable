@@ -26,6 +26,14 @@ extern struct MarioState gMarioStates[];
                         ? "Client"                                           \
                         : (gNetworkType == NT_SERVER ? "Server" : " None ")) \
 
+#ifdef DEVELOPMENT
+#define SOFT_ASSERT(_condition) { if (!(_condition)) { LOG_ERROR("failed assert at line %d", __LINE__); assert(_condition); } }
+#define SOFT_ASSERT_RETURN(_condition, _retval) { if (!(_condition)) { LOG_ERROR("failed assert at line %d", __LINE__); assert(_condition); } }
+#else
+#define SOFT_ASSERT(_condition) { if (!(_condition)) { LOG_ERROR("failed soft assert at line %d", __LINE__); return; } }
+#define SOFT_ASSERT_RETURN(_condition, _retval) { if (!(_condition)) { LOG_ERROR("failed soft assert at line %d", __LINE__); return _retval; } }
+#endif
+
 enum NetworkSystemType {
     NS_SOCKET,
     NS_DISCORD,
@@ -33,7 +41,8 @@ enum NetworkSystemType {
 
 struct NetworkSystem {
     bool (*initialize)(enum NetworkType);
-    void (*save_id)(u8 localIndex);
+    s64 (*get_id)(u8 localIndex);
+    void (*save_id)(u8 localIndex, s64 networkId);
     void (*clear_id)(u8 localIndex);
     void (*update)(void);
     int  (*send)(u8 localIndex, u8* data, u16 dataLength);
@@ -43,10 +52,9 @@ struct NetworkSystem {
 
 struct SyncObject {
     struct Object* o;
-    u16 reserved;
     float maxSyncDistance;
     bool owned;
-    clock_t clockSinceUpdate;
+    f32 clockSinceUpdate;
     void* behavior;
     u16 txEventId;
     u16 rxEventId[MAX_PLAYERS];
@@ -60,7 +68,10 @@ struct SyncObject {
     u8 (*ignore_if_true)(void);
     void (*on_received_pre)(u8 fromLocalIndex);
     void (*on_received_post)(u8 fromLocalIndex);
+    void (*on_sent_pre)(void);
+    void (*on_sent_post)(void);
     void (*override_ownership)(u8* shouldOverride, u8* shouldOwn);
+    void (*on_forget)(void);
     void* extraFields[MAX_SYNC_OBJECT_FIELDS];
 };
 
@@ -76,27 +87,30 @@ struct ServerSettings {
     u8 stayInLevelAfterStar;
     u8 skipIntro;
     u8 shareLives;
+    u8 enableCheats;
 };
 
 // Networking-specific externs
 extern struct NetworkSystem* gNetworkSystem;
 extern enum NetworkType gNetworkType;
-extern bool gNetworkLevelLoaded;
+extern bool gNetworkAreaLoaded;
+extern bool gNetworkAreaSyncing;
+extern u32 gNetworkAreaTimer;
+extern u32 gNetworkAreaTimerClock;
 extern struct SyncObject gSyncObjects[];
 extern struct ServerSettings gServerSettings;
-extern clock_t gLastNetworkSend;
 extern struct StringLinkedList gRegisteredMods;
 
 // network.c
 void network_set_system(enum NetworkSystemType nsType);
 bool network_init(enum NetworkType inNetworkType);
-void network_on_init_level(void);
-void network_on_loaded_level(void);
+void network_on_init_area(void);
+void network_on_loaded_area(void);
 void network_send_to(u8 localIndex, struct Packet* p);
 void network_send(struct Packet* p);
 void network_receive(u8 localIndex, u8* data, u16 dataLength);
 void network_update(void);
 void network_register_mod(char* modName);
-void network_shutdown(void);
+void network_shutdown(bool sendLeaving);
 
 #endif

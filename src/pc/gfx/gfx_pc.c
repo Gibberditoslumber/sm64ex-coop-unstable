@@ -28,6 +28,8 @@
 #include "../configfile.h"
 #include "../fs/fs.h"
 
+#include "macros.h"
+
 #define SUPPORT_CHECK(x) assert(x)
 
 // SCALE_M_N: upscale/downscale M-bit integer to N-bit
@@ -47,7 +49,7 @@
 #define RATIO_Y (gfx_current_dimensions.height / (2.0f * HALF_SCREEN_HEIGHT))
 
 #define MAX_BUFFERED 256
-#define MAX_LIGHTS 2
+#define MAX_LIGHTS 8
 #define MAX_VERTICES 64
 
 #ifdef EXTERNAL_DATA
@@ -186,6 +188,12 @@ static const uint8_t missing_texture[MISSING_W * MISSING_H * 4] = {
     0x00, 0x00, 0x00, 0xFF,  0x00, 0x00, 0x00, 0xFF,  0xFF, 0x00, 0xFF, 0xFF,  0xFF, 0x00, 0xFF, 0xFF,
 };
 
+//////////////////////////////////
+// forward declaration for djui //
+//////////////////////////////////
+void djui_gfx_run_dl(Gfx* cmd);
+//////////////////////////////////
+
 #ifdef EXTERNAL_DATA
 static inline size_t string_hash(const uint8_t *str) {
     size_t h = 0;
@@ -201,13 +209,13 @@ static unsigned long get_time(void) {
 
 static void gfx_flush(void) {
     if (buf_vbo_len > 0) {
-        int num = buf_vbo_num_tris;
-        unsigned long t0 = get_time();
+        /*int num = buf_vbo_num_tris;
+        unsigned long t0 = get_time();*/
         gfx_rapi->draw_triangles(buf_vbo, buf_vbo_len, buf_vbo_num_tris);
         buf_vbo_len = 0;
         buf_vbo_num_tris = 0;
-        unsigned long t1 = get_time();
-        /*if (t1 - t0 > 1000) {
+        /*unsigned long t1 = get_time();
+        if (t1 - t0 > 1000) {
             printf("f: %d %d\n", num, (int)(t1 - t0));
         }*/
     }
@@ -619,7 +627,7 @@ static void import_texture(int tile) {
     load_texture(texname);
 #else
     // the texture data is actual texture data
-    int t0 = get_time();
+    //int t0 = get_time();
     if (fmt == G_IM_FMT_RGBA) {
         if (siz == G_IM_SIZ_32b) {
             import_texture_rgba32(tile);
@@ -658,7 +666,7 @@ static void import_texture(int tile) {
     } else {
         sys_fatal("unsupported texture format: %u", fmt);
     }
-    int t1 = get_time();
+    //int t1 = get_time();
     //printf("Time diff: %d\n", t1 - t0);
 #endif
 }
@@ -1123,6 +1131,10 @@ static void gfx_sp_movemem(uint8_t index, uint8_t offset, const void* data) {
         case G_MV_L0:
         case G_MV_L1:
         case G_MV_L2:
+        case G_MV_L3:
+        case G_MV_L4:
+        case G_MV_L5:
+        case G_MV_L6:
             // NOTE: reads out of bounds if it is an ambient light
             memcpy(rsp.current_lights + (index - G_MV_L0) / 2, data, sizeof(Light_t));
             break;
@@ -1130,7 +1142,19 @@ static void gfx_sp_movemem(uint8_t index, uint8_t offset, const void* data) {
     }
 }
 
-static void gfx_sp_moveword(uint8_t index, uint16_t offset, uint32_t data) {
+#ifdef F3DEX_GBI_2E
+static void gfx_sp_copymem(uint8_t idx, uint8_t dstofs, uint8_t srcofs, UNUSED uint8_t words) {
+    if (idx == G_MV_LIGHT) {
+        const int srcidx = srcofs / 24 - 2;
+        const int dstidx = dstofs / 24 - 2;
+        if (srcidx <= MAX_LIGHTS && dstidx <= MAX_LIGHTS) {
+            memcpy(rsp.current_lights + dstidx, rsp.current_lights + srcidx, sizeof(Light_t));
+        }
+    }
+}
+#endif
+
+static void gfx_sp_moveword(uint8_t index, UNUSED uint16_t offset, uint32_t data) {
     switch (index) {
         case G_MW_NUMLIGHT:
 #ifdef F3DEX_GBI_2
@@ -1149,12 +1173,12 @@ static void gfx_sp_moveword(uint8_t index, uint16_t offset, uint32_t data) {
     }
 }
 
-static void gfx_sp_texture(uint16_t sc, uint16_t tc, uint8_t level, uint8_t tile, uint8_t on) {
+static void gfx_sp_texture(uint16_t sc, uint16_t tc, UNUSED uint8_t level, UNUSED uint8_t tile, UNUSED uint8_t on) {
     rsp.texture_scaling_factor.s = sc;
     rsp.texture_scaling_factor.t = tc;
 }
 
-static void gfx_dp_set_scissor(uint32_t mode, uint32_t ulx, uint32_t uly, uint32_t lrx, uint32_t lry) {
+static void gfx_dp_set_scissor(UNUSED uint32_t mode, uint32_t ulx, uint32_t uly, uint32_t lrx, uint32_t lry) {
     float x = ulx / 4.0f * RATIO_X;
     float y = (SCREEN_HEIGHT - lry / 4.0f) * RATIO_Y;
     float width = (lrx - ulx) / 4.0f * RATIO_X;
@@ -1168,12 +1192,12 @@ static void gfx_dp_set_scissor(uint32_t mode, uint32_t ulx, uint32_t uly, uint32
     rdp.viewport_or_scissor_changed = true;
 }
 
-static void gfx_dp_set_texture_image(uint32_t format, uint32_t size, uint32_t width, const void* addr) {
+static void gfx_dp_set_texture_image(UNUSED uint32_t format, uint32_t size, UNUSED uint32_t width, const void* addr) {
     rdp.texture_to_load.addr = addr;
     rdp.texture_to_load.siz = size;
 }
 
-static void gfx_dp_set_tile(uint8_t fmt, uint32_t siz, uint32_t line, uint32_t tmem, uint8_t tile, uint32_t palette, uint32_t cmt, uint32_t maskt, uint32_t shiftt, uint32_t cms, uint32_t masks, uint32_t shifts) {
+static void gfx_dp_set_tile(uint8_t fmt, uint32_t siz, uint32_t line, uint32_t tmem, uint8_t tile, uint32_t palette, uint32_t cmt, UNUSED uint32_t maskt, UNUSED uint32_t shiftt, uint32_t cms, UNUSED uint32_t masks, UNUSED uint32_t shifts) {
     
     if (tile == G_TX_RENDERTILE) {
         SUPPORT_CHECK(palette == 0); // palette should set upper 4 bits of color index in 4b mode
@@ -1202,13 +1226,13 @@ static void gfx_dp_set_tile_size(uint8_t tile, uint16_t uls, uint16_t ult, uint1
     }
 }
 
-static void gfx_dp_load_tlut(uint8_t tile, uint32_t high_index) {
+static void gfx_dp_load_tlut(uint8_t tile, UNUSED uint32_t high_index) {
     SUPPORT_CHECK(tile == G_TX_LOADTILE);
     SUPPORT_CHECK(rdp.texture_to_load.siz == G_IM_SIZ_16b);
     rdp.palette = rdp.texture_to_load.addr;
 }
 
-static void gfx_dp_load_block(uint8_t tile, uint32_t uls, uint32_t ult, uint32_t lrs, uint32_t dxt) {
+static void gfx_dp_load_block(uint8_t tile, uint32_t uls, uint32_t ult, uint32_t lrs, UNUSED uint32_t dxt) {
     if (tile == 1) return;
     SUPPORT_CHECK(tile == G_TX_LOADTILE);
     SUPPORT_CHECK(uls == 0);
@@ -1404,7 +1428,7 @@ static void gfx_draw_rectangle(int32_t ulx, int32_t uly, int32_t lrx, int32_t lr
     }
 }
 
-static void gfx_dp_texture_rectangle(int32_t ulx, int32_t uly, int32_t lrx, int32_t lry, uint8_t tile, int16_t uls, int16_t ult, int16_t dsdx, int16_t dtdy, bool flip) {
+static void gfx_dp_texture_rectangle(int32_t ulx, int32_t uly, int32_t lrx, int32_t lry, UNUSED uint8_t tile, int16_t uls, int16_t ult, int16_t dsdx, int16_t dtdy, bool flip) {
     uint32_t saved_combine_mode = rdp.combine_mode;
     if ((rdp.other_mode_h & (3U << G_MDSFT_CYCLETYPE)) == G_CYC_COPY) {
         // Per RDP Command Summary Set Tile's shift s and this dsdx should be set to 4 texels
@@ -1484,7 +1508,7 @@ static void gfx_dp_set_z_image(void *z_buf_address) {
     rdp.z_buf_address = z_buf_address;
 }
 
-static void gfx_dp_set_color_image(uint32_t format, uint32_t size, uint32_t width, void* address) {
+static void gfx_dp_set_color_image(UNUSED uint32_t format, UNUSED uint32_t size, UNUSED uint32_t width, void* address) {
     rdp.color_image_address = address;
 }
 
@@ -1504,7 +1528,6 @@ static inline void *seg_addr(uintptr_t w1) {
 #define C1(pos, width) ((cmd->words.w1 >> (pos)) & ((1U << width) - 1))
 
 static void gfx_run_dl(Gfx* cmd) {
-    int dummy = 0;
     for (;;) {
         uint32_t opcode = cmd->words.w0 >> 24;
         
@@ -1538,6 +1561,11 @@ static void gfx_run_dl(Gfx* cmd) {
                 gfx_sp_moveword(C0(0, 8), C0(8, 16), cmd->words.w1);
 #endif
                 break;
+#ifdef F3DEX_GBI_2E
+            case (uint8_t)G_COPYMEM:
+                gfx_sp_copymem(C0(0, 8), C0(8, 8) * 8, C0(16, 8) * 8, C1(0, 8));
+                break;
+#endif
             case (uint8_t)G_TEXTURE:
 #ifdef F3DEX_GBI_2
                 gfx_sp_texture(C1(16, 16), C1(0, 16), C0(11, 3), C0(8, 3), C0(1, 7));
@@ -1704,6 +1732,9 @@ static void gfx_run_dl(Gfx* cmd) {
             case G_SETCIMG:
                 gfx_dp_set_color_image(C0(21, 3), C0(19, 2), C0(0, 11), seg_addr(cmd->words.w1));
                 break;
+            default:
+                djui_gfx_run_dl(cmd);
+                break;
         }
         ++cmd;
     }
@@ -1791,11 +1822,11 @@ void gfx_run(Gfx *commands) {
     }
     dropped_frame = false;
     
-    double t0 = gfx_wapi->get_time();
+    //double t0 = gfx_wapi->get_time();
     gfx_rapi->start_frame();
     gfx_run_dl(commands);
     gfx_flush();
-    double t1 = gfx_wapi->get_time();
+    //double t1 = gfx_wapi->get_time();
     //printf("Process %f %f\n", t1, t1 - t0);
     gfx_rapi->end_frame();
     gfx_wapi->swap_buffers_begin();
@@ -1816,5 +1847,169 @@ void gfx_shutdown(void) {
     if (gfx_wapi) {
         if (gfx_wapi->shutdown) gfx_wapi->shutdown();
         gfx_wapi = NULL;
+    }
+}
+
+  /////////////////////////
+ // v custom for djui v //
+/////////////////////////
+
+static bool    sDjuiClip          = 0;
+static bool    sDjuiClipRotatedUV = 0;
+static uint8_t sDjuiClipX1        = 0;
+static uint8_t sDjuiClipY1        = 0;
+static uint8_t sDjuiClipX2        = 0;
+static uint8_t sDjuiClipY2        = 0;
+
+static bool    sDjuiOverride        = false;
+static void*   sDjuiOverrideTexture = NULL;
+static uint32_t sDjuiOverrideW       = 0;
+static uint32_t sDjuiOverrideH       = 0;
+static uint32_t sDjuiOverrideB       = 0;
+
+static void djui_gfx_dp_execute_clipping(void) {
+    if (!sDjuiClip) { return; }
+    sDjuiClip = false;
+
+    size_t start_index = 0;
+    size_t dest_index = 4;
+
+    float minX = rsp.loaded_vertices[start_index].x;
+    float maxX = rsp.loaded_vertices[start_index].x;
+    float minY = rsp.loaded_vertices[start_index].y;
+    float maxY = rsp.loaded_vertices[start_index].y;
+
+    float minU = rsp.loaded_vertices[start_index].u;
+    float maxU = rsp.loaded_vertices[start_index].u;
+    float minV = rsp.loaded_vertices[start_index].v;
+    float maxV = rsp.loaded_vertices[start_index].v;
+
+    for (size_t i = start_index; i < dest_index; i++) {
+        struct LoadedVertex* d = &rsp.loaded_vertices[i];
+        minX = fmin(minX, d->x);
+        maxX = fmax(maxX, d->x);
+        minY = fmin(minY, d->y);
+        maxY = fmax(maxY, d->y);
+
+        minU = fmin(minU, d->u);
+        maxU = fmax(maxU, d->u);
+        minV = fmin(minV, d->v);
+        maxV = fmax(maxV, d->v);
+    }
+
+    float midY = (minY + maxY) / 2.0f;
+    float midX = (minX + maxX) / 2.0f;
+    float midU = (minU + maxU) / 2.0f;
+    float midV = (minV + maxV) / 2.0f;
+    for (size_t i = start_index; i < dest_index; i++) {
+        struct LoadedVertex* d = &rsp.loaded_vertices[i];
+        if (d->x <= midX) {
+            d->x += (maxX - minX) * (sDjuiClipX1 / 255.0f);
+        } else {
+            d->x -= (maxX - minX) * (sDjuiClipX2 / 255.0f);
+        }
+        if (d->y <= midY) {
+            d->y += (maxY - minY) * (sDjuiClipY2 / 255.0f);
+        } else {
+            d->y -= (maxY - minY) * (sDjuiClipY1 / 255.0f);
+        }
+
+        if (sDjuiClipRotatedUV) {
+            if (d->u <= midU) {
+                d->u += (maxU - minU) * (sDjuiClipY2 / 255.0f);
+            }
+            else {
+                d->u -= (maxU - minU) * (sDjuiClipY1 / 255.0f);
+            }
+            if (d->v <= midV) {
+                d->v += (maxV - minV) * (sDjuiClipX2 / 255.0f);
+            }
+            else {
+                d->v -= (maxV - minV) * (sDjuiClipX1 / 255.0f);
+            }
+        } else {
+            if (d->u <= midU) {
+                d->u += (maxU - minU) * (sDjuiClipX1 / 255.0f);
+            } else {
+                d->u -= (maxU - minU) * (sDjuiClipX2 / 255.0f);
+            }
+            if (d->v <= midV) {
+                d->v += (maxV - minV) * (sDjuiClipY1 / 255.0f);
+            } else {
+                d->v -= (maxV - minV) * (sDjuiClipY2 / 255.0f);
+            }
+        }
+    }
+}
+
+static void djui_gfx_dp_execute_override(void) {
+    if (!sDjuiOverride) { return; }
+    sDjuiOverride = false;
+
+    // gsDPSetTextureImage
+    uint8_t sizeLoadBlock = (sDjuiOverrideB == 32) ? 3 : 2;
+    rdp.texture_to_load.addr = sDjuiOverrideTexture;
+    rdp.texture_to_load.siz = sizeLoadBlock;
+
+    // gsDPSetTile
+    rdp.texture_tile.siz = sizeLoadBlock;
+
+    // gsDPLoadBlock
+    uint32_t wordSizeShift = (sDjuiOverrideB == 32) ? 2 : 1;
+    uint32_t lrs = (sDjuiOverrideW * sDjuiOverrideH) - 1;
+    uint32_t sizeBytes = (lrs + 1) << wordSizeShift;
+    rdp.loaded_texture[rdp.texture_to_load.tile_number].size_bytes = sizeBytes;
+    rdp.loaded_texture[rdp.texture_to_load.tile_number].addr = rdp.texture_to_load.addr;
+    rdp.textures_changed[rdp.texture_to_load.tile_number] = true;
+
+    // gsDPSetTile
+    uint32_t line = (((sDjuiOverrideW * 2) + 7) >> 3);
+    rdp.texture_tile.line_size_bytes = line * 8;
+
+    // gsDPSetTileSize
+    /*rdp.texture_tile.uls = 0;
+    rdp.texture_tile.ult = 0;
+    rdp.texture_tile.lrs = (sDjuiOverrideW - 1) << G_TEXTURE_IMAGE_FRAC;
+    rdp.texture_tile.lrt = (sDjuiOverrideH - 1) << G_TEXTURE_IMAGE_FRAC;*/
+    rdp.textures_changed[0] = true;
+    rdp.textures_changed[1] = true;
+}
+
+static void djui_gfx_dp_execute_djui(uint32_t opcode) {
+    switch (opcode) {
+        case G_TEXOVERRIDE_DJUI: djui_gfx_dp_execute_override(); break;
+        case G_TEXCLIP_DJUI:     djui_gfx_dp_execute_clipping(); break;
+    }
+}
+
+static void djui_gfx_dp_set_clipping(bool rotatedUV, uint32_t x1, uint32_t y1, uint32_t x2, uint32_t y2) {
+    sDjuiClipRotatedUV = rotatedUV;
+    sDjuiClipX1 = x1;
+    sDjuiClipY1 = y1;
+    sDjuiClipX2 = x2;
+    sDjuiClipY2 = y2;
+    sDjuiClip   = true;
+}
+
+static void djui_gfx_dp_set_override(void* texture, uint32_t w, uint32_t h, uint32_t b) {
+    sDjuiOverrideTexture = texture;
+    sDjuiOverrideW = w;
+    sDjuiOverrideH = h;
+    sDjuiOverrideB = b;
+    sDjuiOverride  = (texture != NULL);
+}
+
+void djui_gfx_run_dl(Gfx* cmd) {
+    uint32_t opcode = cmd->words.w0 >> 24;
+    switch (opcode) {
+        case G_TEXCLIP_DJUI:
+            djui_gfx_dp_set_clipping(C0(0, 8), C0(16, 8), C0(8, 8), C1(16, 8), C1(8, 8));
+            break;
+        case G_TEXOVERRIDE_DJUI:
+            djui_gfx_dp_set_override(seg_addr(cmd->words.w1), 1 << C0(16, 8), 1 << C0(8, 8), C0(0, 8));
+            break;
+        case G_EXECUTE_DJUI:
+            djui_gfx_dp_execute_djui(cmd->words.w1);
+            break;
     }
 }

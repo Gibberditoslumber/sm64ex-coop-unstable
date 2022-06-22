@@ -26,13 +26,10 @@
 #include "macros.h"
 #include "pc/cheats.h"
 #include "pc/network/network.h"
+#include "pc/djui/djui.h"
 #ifdef BETTERCAMERA
 #include "bettercamera.h"
 #endif
-#ifdef EXT_OPTIONS_MENU
-#include "options_menu.h"
-#endif
-#include "chat.h"
 
 u16 gDialogColorFadeTimer;
 s8 gLastDialogLineNum;
@@ -414,26 +411,31 @@ void render_multi_text_string(s16 *xPos, s16 *yPos, s8 multiTextID)
 }
 #endif
 
+u8 str_ascii_char_to_dialog(char c) {
+    switch (c) {
+        case '\'': return 0x3E;
+        case '.':  return 0x3F;
+        case ',':  return DIALOG_CHAR_COMMA;
+        case '-':  return 0x9F;
+        case '(':  return 0xE1;
+        case ')':  return 0xE3;
+        case '&':  return 0xE5;
+        case '!':  return 0xF2;
+        case '%':  return 0xF3;
+        case '?':  return 0xF4;
+        case '"':  return 0xF6; // 0xF5 is opening quote
+        case '~':  return 0xF7;
+        case '*':  return 0xFB;
+        case ' ':  return DIALOG_CHAR_SPACE;
+        case '\n': return DIALOG_CHAR_NEWLINE;
+        case '\0': return DIALOG_CHAR_TERMINATOR;
+        default:   return ((u8)c < 0xF0) ? ASCII_TO_DIALOG(c) : c;
+    }
+}
+
 void str_ascii_to_dialog(const char* string, u8* dialog, u16 length) {
     for (int i = 0; i < length; i++) {
-        switch (string[i]) {
-            case '\'': dialog[i] = 0x3E; break;
-            case '.': dialog[i] = 0x3F; break;
-            case ',': dialog[i] = DIALOG_CHAR_COMMA; break;
-            case '-': dialog[i] = 0x9F; break;
-            case '(': dialog[i] = 0xE1; break;
-            case ')': dialog[i] = 0xE3; break;
-            case '&': dialog[i] = 0xE5; break;
-            case '!': dialog[i] = 0xF2; break;
-            case '%': dialog[i] = 0xF3; break;
-            case '?': dialog[i] = 0xF4; break;
-            case '"': dialog[i] = 0xF6; break; // 0xF5 is opening quote
-            case '~': dialog[i] = 0xF7; break;
-            case '*': dialog[i] = 0xFB; break;
-            case ' ': dialog[i] = DIALOG_CHAR_SPACE; break;
-            case '\n': dialog[i] = DIALOG_CHAR_NEWLINE; break;
-            default: dialog[i] = ((u8)string[i] < 0xF0) ? ASCII_TO_DIALOG(string[i]) : string[i];
-        }
+        dialog[i] = str_ascii_char_to_dialog(string[i]);
     }
     dialog[length] = DIALOG_CHAR_TERMINATOR;
 }
@@ -841,19 +843,19 @@ void handle_menu_scrolling(s8 scrollDirection, s8 *currentIndex, s8 minIndex, s8
     u8 index = 0;
 
     if (scrollDirection == MENU_SCROLL_VERTICAL) {
-        if (gPlayer3Controller->rawStickY > 60) {
+        if (gPlayer1Controller->rawStickY > 60) {
             index++;
         }
 
-        if (gPlayer3Controller->rawStickY < -60) {
+        if (gPlayer1Controller->rawStickY < -60) {
             index += 2;
         }
     } else if (scrollDirection == MENU_SCROLL_HORIZONTAL) {
-        if (gPlayer3Controller->rawStickX > 60) {
+        if (gPlayer1Controller->rawStickX > 60) {
             index += 2;
         }
 
-        if (gPlayer3Controller->rawStickX < -60) {
+        if (gPlayer1Controller->rawStickX < -60) {
             index++;
         }
     }
@@ -1878,8 +1880,8 @@ void render_dialog_entries(void) {
         case DIALOG_STATE_VERTICAL:
             gDialogBoxOpenTimer = 0.0f;
 
-            if ((gPlayer3Controller->buttonPressed & A_BUTTON)
-                || (gPlayer3Controller->buttonPressed & B_BUTTON)) {
+            if ((gPlayer1Controller->buttonPressed & A_BUTTON)
+                || (gPlayer1Controller->buttonPressed & B_BUTTON)) {
                 if (gLastDialogPageStrPos == -1) {
                     handle_special_dialog_text(gDialogID);
                     gDialogBoxState = DIALOG_STATE_CLOSING;
@@ -2732,9 +2734,6 @@ s16 render_pause_courses_and_castle(void) {
 #ifdef VERSION_EU
     gInGameLanguage = eu_get_language();
 #endif
-#ifdef EXT_OPTIONS_MENU
-    if (optmenu_open == 0) {
-#endif
     switch (gDialogBoxState) {
         case DIALOG_STATE_OPENING:
             gDialogLineNum = 1;
@@ -2765,10 +2764,10 @@ s16 render_pause_courses_and_castle(void) {
             }
 
 #ifdef VERSION_EU
-            if (gPlayer3Controller->buttonPressed & (A_BUTTON | Z_TRIG | START_BUTTON))
+            if (gPlayer1Controller->buttonPressed & (A_BUTTON | Z_TRIG | START_BUTTON))
 #else
-            if (gPlayer3Controller->buttonPressed & A_BUTTON
-             || gPlayer3Controller->buttonPressed & START_BUTTON)
+            if (gPlayer1Controller->buttonPressed & A_BUTTON
+             || gPlayer1Controller->buttonPressed & START_BUTTON)
 #endif
             {
                 level_set_transition(0, 0);
@@ -2792,10 +2791,10 @@ s16 render_pause_courses_and_castle(void) {
             render_pause_castle_main_strings(104, 60);
 
 #ifdef VERSION_EU
-            if (gPlayer3Controller->buttonPressed & (A_BUTTON | Z_TRIG | START_BUTTON))
+            if (gPlayer1Controller->buttonPressed & (A_BUTTON | Z_TRIG | START_BUTTON))
 #else
-            if (gPlayer3Controller->buttonPressed & A_BUTTON
-             || gPlayer3Controller->buttonPressed & START_BUTTON)
+            if (gPlayer1Controller->buttonPressed & A_BUTTON
+             || gPlayer1Controller->buttonPressed & START_BUTTON)
 #endif
             {
                 level_set_transition(0, 0);
@@ -2811,58 +2810,10 @@ s16 render_pause_courses_and_castle(void) {
     if (gDialogTextAlpha < 250) {
         gDialogTextAlpha += 25;
     }
-#ifdef EXT_OPTIONS_MENU
-    } else {
-        shade_screen();
-        optmenu_draw();
-    }
-    optmenu_check_buttons();
-    optmenu_draw_prompt();
-#endif
 
-    return 0;
-}
-
-s16 render_sync_level_screen(void) {
-    char* message;
-
-    if (gNetworkType == NT_SERVER) {
-        message = network_player_any_connected() ? "Waiting for player..." : "Waiting for player to connect...";
-    } else {
-        message = network_player_any_connected() ? "Waiting for player..." : "Not connected to anyone.\nPlease restart the game.";
-    }
-
-    static f32 alphaScalar = 0.0f;
-    static clock_t lastDisplay = 0;
-    f32 elapsed = (clock() - lastDisplay) / (f32)CLOCKS_PER_SEC;
-    if (elapsed > 1.0f) {
-        alphaScalar = 0;
-    } else if (alphaScalar < 1.0f) {
-        alphaScalar += 0.3f;
-        if (alphaScalar > 1) { alphaScalar = 1; }
-    }
-    u8 alpha = (((f32)fabs(sin(gGlobalTimer / 20.0f)) * alphaScalar) * 255);
-    lastDisplay = clock();
-
-    // black screen
-    create_dl_translation_matrix(MENU_MTX_PUSH, GFX_DIMENSIONS_FROM_LEFT_EDGE(0), 240.0f, 0);
-    create_dl_scale_matrix(MENU_MTX_NOPUSH, GFX_DIMENSIONS_ASPECT_RATIO * SCREEN_HEIGHT / 130.0f, 3.0f, 1.0f);
-    gDPSetEnvColor(gDisplayListHead++, 0, 0, 0, 255);
-    gSPDisplayList(gDisplayListHead++, dl_draw_text_bg_box);
-    gSPPopMatrix(gDisplayListHead++, G_MTX_MODELVIEW);
-
-    // print text
-    gSPDisplayList(gDisplayListHead++, dl_ia_text_begin);
-    f32 textWidth = get_generic_ascii_string_width(message);
-    f32 textHeight = get_generic_ascii_string_height(message);
-
-    f32 xPos = (SCREEN_WIDTH - textWidth) / 2.0f;
-    f32 yPos = (SCREEN_HEIGHT + textHeight) / 2.0f;
-
-    gDPSetEnvColor(gDisplayListHead++, 255, 255, 255, alpha);
-    print_generic_ascii_string(xPos, yPos, message);
-
-    gSPDisplayList(gDisplayListHead++, dl_ia_text_end);
+    if (gDjuiPanelPauseCreated) { shade_screen(); }
+    if (gPlayer1Controller->buttonPressed & R_TRIG)
+        djui_panel_pause_create(NULL);
 
     return 0;
 }
@@ -3153,8 +3104,8 @@ void render_save_confirmation(s16 x, s16 y, s8 *index, s16 sp6e)
     s16 xOffset = get_str_x_pos_from_center(160, textContinueWithoutSaveArr[gInGameLanguage], 12.0f);
 #else
     u8 textSaveAndContinue[] = { TEXT_SAVE_AND_CONTINUE };
-    u8 textSaveAndQuit[] = { TEXT_SAVE_AND_QUIT };
-    u8 textSaveExitGame[] = { TEXT_SAVE_EXIT_GAME };
+    //u8 textSaveAndQuit[] = { TEXT_SAVE_AND_QUIT };
+    //u8 textSaveExitGame[] = { TEXT_SAVE_EXIT_GAME };
     u8 textContinueWithoutSave[] = { TEXT_CONTINUE_WITHOUT_SAVING };
 #endif
 
@@ -3203,10 +3154,10 @@ s16 render_course_complete_screen(void) {
             render_save_confirmation(100, 86, &gDialogLineNum, 20);
 #endif
             if (gCourseDoneMenuTimer > 110
-                && (gPlayer3Controller->buttonPressed & A_BUTTON
-                 || gPlayer3Controller->buttonPressed & START_BUTTON
+                && (gPlayer1Controller->buttonPressed & A_BUTTON
+                 || gPlayer1Controller->buttonPressed & START_BUTTON
 #ifdef VERSION_EU
-                 || gPlayer3Controller->buttonPressed & Z_TRIG
+                 || gPlayer1Controller->buttonPressed & Z_TRIG
 #endif
                 )) {
                 level_set_transition(0, 0);
@@ -3238,8 +3189,6 @@ s16 render_menus_and_dialogs() {
     s16 mode = 0;
 
     create_dl_ortho_matrix();
-
-    render_chat();
 
     if (gMenuMode != -1) {
         switch (gMenuMode) {

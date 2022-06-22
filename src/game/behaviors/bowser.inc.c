@@ -848,6 +848,10 @@ void bowser_spawn_grand_star_key(void) {
         gSecondCameraFocus = reward;
 
         if (prevReward == NULL) {
+            // set the home position
+            reward->oHomeX = reward->oPosX;
+            reward->oHomeY = reward->oPosY;
+            reward->oHomeZ = reward->oPosZ;
             struct Object* spawn_objects[] = { reward };
             u32 models[] = { MODEL_STAR };
             network_send_spawn_objects(spawn_objects, models, 1);
@@ -859,6 +863,10 @@ void bowser_spawn_grand_star_key(void) {
         cur_obj_play_sound_2(SOUND_GENERAL2_BOWSER_KEY);
 
         if (prevReward == NULL) {
+            // set the home position
+            reward->oHomeX = reward->oPosX;
+            reward->oHomeY = reward->oPosY;
+            reward->oHomeZ = reward->oPosZ;
             struct Object* spawn_objects[] = { reward };
             u32 models[] = { MODEL_BOWSER_KEY };
             network_send_spawn_objects(spawn_objects, models, 1);
@@ -1028,7 +1036,7 @@ void bowser_act_dead(void) {
 }
 
 void bhv_tilting_bowser_lava_platform_init(void) {
-    struct SyncObject* so = network_init_object(o, SYNC_DISTANCE_ONLY_EVENTS);
+    network_init_object(o, SYNC_DISTANCE_ONLY_EVENTS);
     network_init_object_field(o, &o->oAngleVelPitch);
     network_init_object_field(o, &o->oAngleVelRoll);
     network_init_object_field(o, &o->oFaceAnglePitch);
@@ -1305,7 +1313,7 @@ void bhv_bowser_override_ownership(u8* shouldOverride, u8* shouldOwn) {
     if (tiltingTimer > 0) {
         tiltingTimer--;
         *shouldOverride = TRUE;
-        *shouldOwn = (gNetworkType == NT_SERVER);
+        *shouldOwn = (get_network_player_smallest_global() == gNetworkPlayerLocal);
     }
 }
 

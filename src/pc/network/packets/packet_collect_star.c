@@ -8,6 +8,7 @@
 #include "src/game/memory.h"
 #include "src/game/object_helpers.h"
 #include "src/game/save_file.h"
+#include "pc/debuglog.h"
 
 extern s16 gCurrSaveFileNum;
 extern s16 gCurrCourseNum;
@@ -47,14 +48,16 @@ void network_send_collect_star(struct Object* o, s16 coinScore, s16 starIndex) {
     u16 behaviorId = get_id_from_behavior(o->behavior);
 
     struct Packet p;
-    packet_init(&p, PACKET_COLLECT_STAR, true, false);
-
+    packet_init(&p, PACKET_COLLECT_STAR, true, PLMT_NONE);
     packet_write(&p, &gCurrSaveFileNum, sizeof(s16));
-    packet_write(&p, &gCurrCourseNum, sizeof(s16));
+    packet_write(&p, &gCurrCourseNum,   sizeof(s16));
+    packet_write(&p, &gCurrActStarNum,  sizeof(s16));
+    packet_write(&p, &gCurrLevelNum,    sizeof(s16));
+    packet_write(&p, &gCurrAreaIndex,   sizeof(s16));
     packet_write(&p, &o->oPosX, sizeof(f32) * 3);
     packet_write(&p, &behaviorId, sizeof(u16));
-    packet_write(&p, &coinScore, sizeof(s16));
-    packet_write(&p, &starIndex, sizeof(s16));
+    packet_write(&p, &coinScore,  sizeof(s16));
+    packet_write(&p, &starIndex,  sizeof(s16));
 
     network_send(&p);
 }
@@ -64,14 +67,20 @@ void network_receive_collect_star(struct Packet* p) {
     u16 behaviorId;
     s16 coinScore, starIndex;
     s16 lastSaveFileNum = gCurrSaveFileNum;
-    s16 lastCourseNum = gCurrCourseNum;
+    s16 lastCourseNum   = gCurrCourseNum;
+    s16 lastStarActNum  = gCurrActStarNum;
+    s16 lastLevelNum    = gCurrLevelNum;
+    s16 lastAreaIndex   = gCurrAreaIndex;
 
     packet_read(p, &gCurrSaveFileNum, sizeof(s16));
-    packet_read(p, &gCurrCourseNum, sizeof(s16));
+    packet_read(p, &gCurrCourseNum,   sizeof(s16));
+    packet_read(p, &gCurrActStarNum,  sizeof(s16));
+    packet_read(p, &gCurrLevelNum,    sizeof(s16));
+    packet_read(p, &gCurrAreaIndex,   sizeof(s16));
     packet_read(p, &pos, sizeof(f32) * 3);
     packet_read(p, &behaviorId, sizeof(u16));
-    packet_read(p, &coinScore, sizeof(s16));
-    packet_read(p, &starIndex, sizeof(s16));
+    packet_read(p, &coinScore,  sizeof(s16));
+    packet_read(p, &starIndex,  sizeof(s16));
 
     const void* behavior = get_behavior_from_id(behaviorId);
 
@@ -82,11 +91,23 @@ void network_receive_collect_star(struct Packet* p) {
         gMarioStates[i].numStars = numStars;
     }
 
-    gCurrSaveFileNum = lastSaveFileNum;
-    gCurrCourseNum = lastCourseNum;
+    struct NetworkPlayer* np = gNetworkPlayerLocal;
+    bool levelAreaMismatch = ((np == NULL)
+        || np->currCourseNum != gCurrCourseNum
+        || np->currActNum    != gCurrActStarNum
+        || np->currLevelNum  != gCurrLevelNum
+        || np->currAreaIndex != gCurrAreaIndex);
 
-    struct Object* star = find_nearest_star(behavior, pos, 500);
-    if (star != NULL) {
-        star->oInteractStatus = INT_STATUS_INTERACTED;
+    gCurrSaveFileNum = lastSaveFileNum;
+    gCurrCourseNum   = lastCourseNum;
+    gCurrActStarNum  = lastStarActNum;
+    gCurrLevelNum    = lastLevelNum;
+    gCurrAreaIndex   = lastAreaIndex;
+
+    if (!levelAreaMismatch) {
+        struct Object* star = find_nearest_star(behavior, pos, 500);
+        if (star != NULL) {
+            star->oInteractStatus = INT_STATUS_INTERACTED;
+        }
     }
 }

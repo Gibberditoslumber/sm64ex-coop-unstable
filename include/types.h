@@ -62,6 +62,12 @@ enum SpTaskState {
     SPTASK_STATE_FINISHED_DP
 };
 
+enum AreaTimerType {
+    AREA_TIMER_TYPE_NONE,
+    AREA_TIMER_TYPE_LOOP,
+    AREA_TIMER_TYPE_MAXIMUM,
+};
+
 struct SPTask
 {
     /*0x00*/ OSTask task;
@@ -220,6 +226,12 @@ struct Object
     /*0x218*/ void *collisionData;
     /*0x21C*/ Mat4 transform;
     /*0x25C*/ void *respawnInfo;
+    /*?????*/ u8 createdThroughNetwork;
+    /*?????*/ enum AreaTimerType areaTimerType;
+    /*?????*/ u32 areaTimer;
+    /*?????*/ u32 areaTimerDuration;
+    /*?????*/ void (*areaTimerRunOnceCallback)(void);
+    /*?????*/ u8 globalPlayerIndex;
 };
 
 struct ObjectHitbox
@@ -379,6 +391,9 @@ struct MarioState
 
     /*????*/ Vec3f nonInstantWarpPos;
     /*????*/ struct Character* character;
+    /*????*/ u8 wasNetworkVisible;
+    /*????*/ f32 minimumBoneY;
+    /*????*/ f32 curAnimOffset;
 };
 
 #define PLAY_MODE_NORMAL 0
@@ -386,13 +401,12 @@ struct MarioState
 #define PLAY_MODE_CHANGE_AREA 3
 #define PLAY_MODE_CHANGE_LEVEL 4
 #define PLAY_MODE_FRAME_ADVANCE 5
-#define PLAY_MODE_SYNC_LEVEL 6
 
 // NOTE: this defines the maximum number of players...
 //       HOWEVER, simply increasing this to 3 will not magically work
 //       many things will have to be overhauled!
 #ifdef UNSTABLE_BRANCH
-#define MAX_PLAYERS 4
+#define MAX_PLAYERS 16
 #else
 #define MAX_PLAYERS 2
 #endif

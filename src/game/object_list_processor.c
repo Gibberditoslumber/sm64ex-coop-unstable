@@ -266,6 +266,7 @@ void bhv_mario_update(void) {
     for (int i = 0; i < MAX_PLAYERS; i++) {
         if (gMarioStates[i].marioObj == NULL) { continue; }
         gMarioStates[i].marioObj->oBehParams = i + 1;
+        gMarioStates[i].marioObj->globalPlayerIndex = gNetworkPlayers[i].globalIndex;
     }
 
     // set mario state to the current player
@@ -297,6 +298,8 @@ void bhv_mario_update(void) {
 
         i++;
     }
+
+    update_character_anim_offset(gMarioState);
 
     // reset mario state to the local player
     gMarioState = &gMarioStates[0];
@@ -424,17 +427,27 @@ s32 unload_deactivated_objects_in_list(struct ObjectNode *objList) {
 void set_object_respawn_info_bits(struct Object *obj, u8 bits) {
     u32 *info32;
     u16 *info16;
+    u8 oldRespawnInfoBits = 0;
+    u8 newRespawnInfoBits = 0;
 
     switch (obj->respawnInfoType) {
         case RESPAWN_INFO_TYPE_32:
             info32 = (u32 *) obj->respawnInfo;
+            oldRespawnInfoBits = (u8)(*info32 >> 8);
             *info32 |= bits << 8;
+            newRespawnInfoBits = (u8)(*info32 >> 8);
             break;
 
         case RESPAWN_INFO_TYPE_16:
             info16 = (u16 *) obj->respawnInfo;
+            oldRespawnInfoBits = (u8)(*info16 >> 8);
             *info16 |= bits << 8;
+            newRespawnInfoBits = (u8)(*info16 >> 8);
             break;
+    }
+
+    if (newRespawnInfoBits != oldRespawnInfoBits) {
+        network_send_level_respawn_info(obj, newRespawnInfoBits);
     }
 }
 

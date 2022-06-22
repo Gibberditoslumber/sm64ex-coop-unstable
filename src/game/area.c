@@ -33,6 +33,7 @@ struct WarpTransition gWarpTransition;
 
 s16 gCurrCourseNum;
 s16 gCurrActNum;
+s16 gCurrActStarNum;
 s16 gCurrAreaIndex;
 s16 gSavedCourseNum;
 s16 gPauseScreenMode;
@@ -192,6 +193,12 @@ void load_obj_warp_nodes(void) {
 }
 
 void clear_areas(void) {
+    struct NetworkPlayer* np = gNetworkPlayerLocal;
+    if (np != NULL) {
+        np->currAreaSyncValid = false;
+        np->currLevelSyncValid = false;
+    }
+
     s32 i;
 
     gCurrentArea = NULL;
@@ -220,6 +227,8 @@ void clear_areas(void) {
         gAreaData[i].dialog[1] = 255;
         gAreaData[i].musicParam = 0;
         gAreaData[i].musicParam2 = 0;
+        memset(gAreaData[i].cachedBehaviors, 0, sizeof(u8) * 256);
+        memset(gAreaData[i].cachedPositions, 0, sizeof(Vec3f) * 256);
     }
 }
 
@@ -260,6 +269,11 @@ void load_area(s32 index) {
 }
 
 void unload_area(void) {
+    struct NetworkPlayer* np = gNetworkPlayerLocal;
+    if (np != NULL) {
+        np->currAreaSyncValid = false;
+    }
+
     network_clear_sync_objects();
     if (gCurrentArea != NULL) {
         unload_objects_from_area(0, gCurrentArea->index);
@@ -439,18 +453,6 @@ void render_game(void) {
         } else {
             clear_frame_buffer(gWarpTransFBSetColor);
         }
-    }
-
-    // only render 'synchronizing' text if we've been waiting for a while
-    static u8 syncLevelTime = 0;
-    if (sCurrPlayMode == PLAY_MODE_SYNC_LEVEL) {
-        if (syncLevelTime < 30) {
-            syncLevelTime++;
-        } else {
-            render_sync_level_screen();
-        }
-    } else {
-        syncLevelTime = 0;
     }
 
     D_8032CE74 = NULL;

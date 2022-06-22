@@ -5,9 +5,19 @@
 #include "game/mario.h"
 #include "sm64.h"
 
+#include "object_fields.h"
+#include "object_constants.h"
+#include "src/game/object_helpers.h"
+#include "behavior_data.h"
+#include "behavior_table.h"
+
 #ifdef DEBUG
 
-static u8 warpToLevel = LEVEL_WF;
+static u8 warpToLevel = LEVEL_BOB;
+static u8 warpToArea = 29;
+// warpToArea: 26 = basement
+// warpToArea: 27 = upstairs
+// warpToArea: 29 = courtyard
 
 #define SCANCODE_0 0x0B
 #define SCANCODE_1 0x02
@@ -25,11 +35,21 @@ static void debug_breakpoint_here(void) {
 }
 
 static void debug_warp_level(u8 level) {
+    // warp to credits
+    //set_mario_action(&gMarioStates[0], ACT_JUMBO_STAR_CUTSCENE, 0);
+    //return;
+
     if (sCurrPlayMode == PLAY_MODE_CHANGE_LEVEL) { return; }
-    if (sCurrPlayMode == PLAY_MODE_SYNC_LEVEL) { return; }
+    gCurrCourseNum = 0;
+    gCurrLevelNum = 0;
+    gCurrAreaIndex = 0;
+    gCurrActStarNum = 0;
+    gCurrAreaIndex = 0;
+    gChangeLevel = level;
+    return;
 
     // find level from painting
-    for (int i = 0; i < 45; i++) {
+    /*for (int i = 0; i < 45; i++) {
         struct WarpNode* node = &gCurrentArea->paintingWarpNodes[i];
         if (node == NULL) { break; }
         if (node->destLevel == level) {
@@ -39,8 +59,7 @@ static void debug_warp_level(u8 level) {
             sWarpDest.nodeId = node->destNode;
             sWarpDest.arg = 0;
 
-            sCurrPlayMode = PLAY_MODE_SYNC_LEVEL;
-            network_send_level_warp_begin();
+            sCurrPlayMode = PLAY_MODE_CHANGE_LEVEL;
             return;
         }
     }
@@ -55,8 +74,7 @@ static void debug_warp_level(u8 level) {
             sWarpDest.nodeId = node->destNode;
             sWarpDest.arg = 0;
 
-            sCurrPlayMode = PLAY_MODE_SYNC_LEVEL;
-            network_send_level_warp_begin();
+            sCurrPlayMode = PLAY_MODE_CHANGE_LEVEL;
             return;
         }
         objectNode = objectNode->next;
@@ -68,33 +86,31 @@ static void debug_warp_level(u8 level) {
     sWarpDest.areaIdx = 1;
     sWarpDest.nodeId = 0x1F;
     sWarpDest.arg = 0;
-    sCurrPlayMode = PLAY_MODE_SYNC_LEVEL;
+    sCurrPlayMode = PLAY_MODE_CHANGE_LEVEL;
     D_80339ECA = 0;
     D_80339EE0 = 0;
     extern s16 gSavedCourseNum;
-    gSavedCourseNum = 0;
-    network_send_level_warp_begin();
+    gSavedCourseNum = 0;*/
 }
 
 static void debug_warp_area() {
-    /*level_trigger_warp(&gMarioStates[0], WARP_OP_CREDITS_START);
-    return;*/
     if (sCurrPlayMode == PLAY_MODE_CHANGE_LEVEL) { return; }
-    if (sCurrPlayMode == PLAY_MODE_SYNC_LEVEL) { return; }
 
     struct ObjectWarpNode* objectNode = gCurrentArea->warpNodes;
+    u8 onArea = 0;
     while (objectNode != NULL) {
         struct WarpNode* node = &objectNode->node;
-        if (node->destLevel == gCurrLevelNum && node->destArea != gCurrAreaIndex) {
-            sWarpDest.type = WARP_TYPE_CHANGE_AREA;
-            sWarpDest.levelNum = node->destLevel;
-            sWarpDest.areaIdx = node->destArea;
-            sWarpDest.nodeId = node->destNode;
-            sWarpDest.arg = 0;
+        if (gCurrCourseNum == 0 || (node->destLevel == gCurrLevelNum && node->destArea != gCurrAreaIndex)) {
+            if (gCurrCourseNum != 0 || ++onArea == warpToArea) {
+                sWarpDest.type = WARP_TYPE_CHANGE_AREA;
+                sWarpDest.levelNum = node->destLevel;
+                sWarpDest.areaIdx = node->destArea;
+                sWarpDest.nodeId = node->destNode;
+                sWarpDest.arg = 0;
 
-            sCurrPlayMode = PLAY_MODE_SYNC_LEVEL;
-            network_send_level_warp_begin();
-            return;
+                sCurrPlayMode = PLAY_MODE_CHANGE_LEVEL;
+                return;
+            }
         }
         objectNode = objectNode->next;
     }
@@ -115,6 +131,15 @@ static void debug_suicide(void) {
     gMarioStates[0].hurtCounter = 31;
 }
 
+static void debug_spawn_object(void) {
+    struct Object* box = spawn_object(gMarioStates[0].marioObj, MODEL_BREAKABLE_BOX_SMALL, bhvBreakableBoxSmall);
+    network_set_sync_id(box);
+
+    struct Object* spawn_objects[] = { box };
+    u32 models[] = { MODEL_BREAKABLE_BOX_SMALL };
+    network_send_spawn_objects(spawn_objects, models, 1);
+}
+
 void debug_keyboard_on_key_down(int scancode) {
     scancode = scancode;
     switch (scancode & 0xFF) {
@@ -122,6 +147,7 @@ void debug_keyboard_on_key_down(int scancode) {
 #ifdef DEVELOPMENT
         case SCANCODE_6: debug_warp_level(warpToLevel); break;
         case SCANCODE_7: debug_warp_area(); break;
+        case SCANCODE_8: debug_spawn_object(); break;
         case SCANCODE_9: debug_warp_to(); break;
         case SCANCODE_0: debug_suicide(); break;
 #endif
